@@ -1,4 +1,5 @@
 const UsersModel = require('../models/user');
+const jwt = require('jsonwebtoken');
 
 const formatDocument = (doc) => {
     const obj = doc.toObject();
@@ -42,6 +43,8 @@ module.exports.getByID = async function (req, res, next) {
 
 module.exports.processAdd = async function (req, res, next) {
     try {
+        console.log("BODY RECEIVED:", req.body);
+
         let user = await UsersModel.create(req.body);
 
         res.status(200).json({
@@ -50,21 +53,33 @@ module.exports.processAdd = async function (req, res, next) {
             data: formatDocument(user)
         });
     } catch (error) {
-        console.log(error);
-        next(error);
+        console.error("CREATE USER ERROR:", error); 
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
     }
 }
 
 module.exports.processEdit = async function (req, res, next) {
     try {
         let id = req.params.id;
-        let result = await UsersModel.updateOne({ _id: id }, req.body);
+        let updated = await UsersModel.findByIdAndUpdate(
+            id,
+            req.body,
+            { new: true }
+        );
 
-        if (result.modifiedCount > 0) {
-            res.json({ success: true, message: "User updated successfully." });
-        } else {
-            throw new Error('User not updated. Are you sure it exists?');
+        if (!updated) {
+            throw new Error('User not found or not updated.');
         }
+
+        res.json({
+            success: true,
+            message: "User updated successfully.",
+            data: formatDocument(updated)
+        });
+
     } catch (error) {
         console.log(error);
         next(error);
@@ -74,15 +89,67 @@ module.exports.processEdit = async function (req, res, next) {
 module.exports.performDelete = async function (req, res, next) {
     try {
         let id = req.params.id;
-        let result = await UsersModel.deleteOne({ _id: id });
 
-        if (result.deletedCount > 0) {
-            res.json({ success: true, message: "User deleted successfully." });
-        } else {
-            throw new Error('User not deleted. Are you sure it exists?');
+        const deletedDoc = await UsersModel.findByIdAndDelete(id);
+
+        if (!deletedDoc) {
+            return res.status(404).json({
+                success: false,
+                message: "Item not found or already deleted."
+            });
         }
+
+        return res.json({
+            success: true,
+            message: "Item deleted successfully."
+        });
+
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+}
+
+module.exports.login = async function (req, res, next) {
+    try {
+        const { email, password } = req.body;
+
+        const user = await UsersModel.findOne({ email });
+
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid email or password"
+            });
+        }
+
+        const isMatch = await user.matchPassword(password);
+
+        if (!isMatch) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid email or password"
+            });
+        }
+
+        const token = jwt.sign(
+            { id: user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: "1d" }
+        );
+
+        res.json({
+            success: true,
+            message: "Login successful",
+            token,
+            data: formatDocument(user)
+        });
+
     } catch (error) {
         console.log(error);
         next(error);
     }
-}
+};

@@ -55,6 +55,8 @@ module.exports.processAdd = async (req, res, next) => {
         delete obj._id;
         delete obj.__v;
 
+        console.log("BODY RECEIVED:", req.body);
+
         res.status(200).json({
             success: true,
             message: "Project created successfully.",
@@ -87,21 +89,29 @@ module.exports.processEdit = async (req, res, next) => {
     }
 }
 
-module.exports.performDelete = async (req, res, next) => {
+module.exports.performDelete = async function (req, res, next) {
     try {
         let id = req.params.id;
-        let result = await ProjectsModel.deleteOne({ _id: id });
 
-        if (result.deletedCount > 0) {
-            res.json({
-                success: true,
-                message: "Project deleted successfully."
+        const deletedDoc = await ProjectsModel.findByIdAndDelete(id);
+
+        if (!deletedDoc) {
+            return res.status(404).json({
+                success: false,
+                message: "Item not found or already deleted."
             });
-        } else {
-            throw new Error('Project not deleted. Are you sure it exists?');
         }
+
+        return res.json({
+            success: true,
+            message: "Item deleted successfully."
+        });
+
     } catch (error) {
         console.log(error);
-        next(error);
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
     }
 }

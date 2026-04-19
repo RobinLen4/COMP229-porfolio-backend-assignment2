@@ -74,15 +74,26 @@ module.exports.processEdit = async function (req, res, next) {
 module.exports.performDelete = async function (req, res, next) {
     try {
         let id = req.params.id;
-        let result = await ServiceModel.deleteOne({ _id: id });
 
-        if (result.deletedCount > 0) {
-            res.json({ success: true, message: "Service deleted successfully." });
-        } else {
-            throw new Error('Service not deleted. Are you sure it exists?');
+        const deletedDoc = await ServiceModel.findByIdAndDelete(id);
+
+        if (!deletedDoc) {
+            return res.status(404).json({
+                success: false,
+                message: "Item not found or already deleted."
+            });
         }
+
+        return res.json({
+            success: true,
+            message: "Item deleted successfully."
+        });
+
     } catch (error) {
         console.log(error);
-        next(error);
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
     }
 }
